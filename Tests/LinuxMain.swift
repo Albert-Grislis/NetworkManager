@@ -1,5 +1,4 @@
 import XCTest
-
 import NetworkManagerTests
 
 var tests = [XCTestCaseEntry]()

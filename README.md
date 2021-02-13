@@ -1,3 +1,3 @@
 # NetworkManager
 
-A description of this package.
+It's just a NetworkManager  
