@@ -1,0 +1,16 @@
+{
+  "object": {
+    "pins": [
+      {
+        "package": "Utils",
+        "repositoryURL": "https://github.com/Albert-Grislis/Utils",
+        "state": {
+          "branch": null,
+          "revision": "e9b5f3c5f0767f1f633396e886583e3ea6f9503b",
+          "version": "1.0.0"
+        }
+      }
+    ]
+  },
+  "version": 1
+}
