@@ -16,7 +16,10 @@ public protocol NetworkOperationProgressObservationProtocol: class {
 
 final class NetworkOperation: Operation {
     
+    // MARK: Public properties
     let urlRequest: URLRequest
+    
+    // MARK: Private properties
     private(set) var completionHandlersQueue: DispatchQueue
     @Atomic private(set) var completionHandlers: [NetworkCompletionHandler]
     private weak var urlSessionTaskProgressObserver: NetworkOperationProgressObservationProtocol?
@@ -37,6 +40,7 @@ final class NetworkOperation: Operation {
         super.init()
     }
     
+    // MARK: Public methods
     override func main() {
         guard !isCancelled else {
             return
@@ -75,6 +79,7 @@ final class NetworkOperation: Operation {
         }
     }
     
+    // MARK: Private methods
     private func complete(result: Result<Response, Error>) {
         if !isCancelled {
             completionHandlersQueue.async { [weak self] in
