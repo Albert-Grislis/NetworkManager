@@ -20,8 +20,5 @@ let package = Package(
         .target(
             name: "NetworkManager",
             dependencies: [.product(name: "Utils", package: "Utils", condition: .none)]),
-        .testTarget(
-            name: "NetworkManagerTests",
-            dependencies: ["NetworkManager"]),
     ]
 )
