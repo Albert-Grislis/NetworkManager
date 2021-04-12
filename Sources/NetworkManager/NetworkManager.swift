@@ -18,12 +18,13 @@ public protocol NetworkManagerProtocol {
 
 final public class NetworkManager: NSObject {
     
+    // MARK: Private properties
     @Atomic private var operations: [URLRequest: NetworkOperation]
     private let operationQueue: OperationQueue
     private let urlSession: URLSession
     
     // MARK: Initializers & Deinitializers
-    init(urlSession: URLSession) {
+    public init(urlSession: URLSession) {
         self.operations = [:]
         self.operationQueue = OperationQueue()
         self.operationQueue.qualityOfService = .userInitiated
@@ -31,6 +32,7 @@ final public class NetworkManager: NSObject {
         super.init()
     }
     
+    // MARK: Private methods
     private func createRemovingCompletionHandler(with urlRequest: URLRequest) -> NetworkCompletionHandler {
         return { [weak self] _ in
             self?.operations.removeValue(forKey: urlRequest)
