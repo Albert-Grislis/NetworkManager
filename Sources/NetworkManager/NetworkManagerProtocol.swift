@@ -8,6 +8,10 @@
 import Foundation
 
 public protocol NetworkManagerProtocol {
+    func rawData(url: URL,
+                 completionHandlerQueue: DispatchQueue,
+                 completionHandler: @escaping NetworkCompletionHandler,
+                 progressObserver: NetworkOperationProgressObservationProtocol?)
     func rawData(urlRequest: URLRequest,
                  completionHandlerQueue: DispatchQueue,
                  completionHandler: @escaping NetworkCompletionHandler,

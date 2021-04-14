@@ -34,6 +34,16 @@ final public class NetworkManager: NSObject {
 
 // MARK: NetworkManagerProtocol
 extension NetworkManager: NetworkManagerProtocol {
+    public func rawData(url: URL,
+                        completionHandlerQueue: DispatchQueue,
+                        completionHandler: @escaping NetworkCompletionHandler,
+                        progressObserver: NetworkOperationProgressObservationProtocol?) {
+        let urlRequest = URLRequest(url: url)
+        rawData(urlRequest: urlRequest,
+                completionHandlerQueue: completionHandlerQueue,
+                completionHandler: completionHandler, progressObserver: progressObserver)
+    }
+    
     public func rawData(urlRequest: URLRequest,
                         completionHandlerQueue: DispatchQueue,
                         completionHandler: @escaping NetworkCompletionHandler,
