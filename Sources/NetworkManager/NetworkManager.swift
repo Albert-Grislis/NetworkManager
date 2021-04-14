@@ -8,14 +8,6 @@
 import Foundation
 import Utils
 
-public protocol NetworkManagerProtocol {
-    func rawData(urlRequest: URLRequest,
-                 completionHandlerQueue: DispatchQueue,
-                 completionHandler: @escaping NetworkCompletionHandler,
-                 progressObserver: NetworkOperationProgressObservationProtocol?)
-    func cancelAnyTasksIfNeeded(at urlRequest: URLRequest)
-}
-
 final public class NetworkManager: NSObject {
     
     // MARK: Private properties
