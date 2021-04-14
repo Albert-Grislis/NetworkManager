@@ -8,6 +8,8 @@
 import Foundation
 
 public protocol NetworkManagerProtocol {
+    
+    // MARK: Public methods
     func rawData(url: URL,
                  completionHandlerQueue: DispatchQueue,
                  completionHandler: @escaping NetworkCompletionHandler,
