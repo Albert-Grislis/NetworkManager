@@ -8,8 +8,11 @@
 import Foundation
 
 public protocol NetworkOperationProgressObservationProtocol: class {
+    
+    // MARK: Public properties
     var changeNetworkOperationProgressHandler: (Progress, NSKeyValueObservedChange<Double>) -> Void { get }
     var invalidateNetworkOperationProgressObservation: (() -> Void)? { get }
     
+    // MARK: Public methods
     func setNetworkOperationProgressObserver(to observer: NSKeyValueObservation)
 }
