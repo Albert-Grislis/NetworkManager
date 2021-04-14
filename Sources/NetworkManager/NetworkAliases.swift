@@ -8,5 +8,4 @@
 import Foundation
 
 // MARK: Public typealiases
-public typealias Response = (data: Data, statusCode: Int)
-public typealias NetworkCompletionHandler = (Result<Response, Error>) -> Void
+public typealias NetworkCompletionHandler = (Result<Data, Error>) -> Void

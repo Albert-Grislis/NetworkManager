@@ -8,12 +8,6 @@
 import Foundation
 import Utils
 
-public protocol NetworkOperationProgressObservationProtocol: class {
-    var changeNetworkOperationProgressHandler: (Progress, NSKeyValueObservedChange<Double>) -> Void { get }
-    var invalidateNetworkOperationProgressObservation: (() -> Void)? { get }
-    func setNetworkOperationProgressObserver(to observer: NSKeyValueObservation)
-}
-
 final class NetworkOperation: Operation {
     
     // MARK: Public properties
@@ -49,7 +43,7 @@ final class NetworkOperation: Operation {
             if let error = error {
                 self?.complete(result: .failure(error))
             } else if let data = data {
-                self?.complete(result: .success((data, (response as! HTTPURLResponse).statusCode)))
+                self?.complete(result: .success(data))
             }
         })
         if let urlSesstiontask = urlSessionTask, let urlSessionTaskProgressObserver = urlSessionTaskProgressObserver {
@@ -80,7 +74,7 @@ final class NetworkOperation: Operation {
     }
     
     // MARK: Private methods
-    private func complete(result: Result<Response, Error>) {
+    private func complete(result: Result<Data, Error>) {
         if !isCancelled {
             completionHandlersQueue.async { [weak self] in
                 self?.completionHandlers.forEach { completionHandler in
