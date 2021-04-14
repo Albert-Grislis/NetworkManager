@@ -11,6 +11,7 @@ let package = Package(
     products: [
         .library(
             name: "NetworkManager",
+            type: .dynamic,
             targets: ["NetworkManager"]),
     ],
     dependencies: [
