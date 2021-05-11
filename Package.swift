@@ -15,7 +15,7 @@ let package = Package(
             targets: ["NetworkManager"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/Albert-Grislis/Utils", from: Version(1, 0, 0))
+        .package(name: "Utils", url: "https://github.com/Albert-Grislis/Utils", .branch("main"))
     ],
     targets: [
         .target(
