@@ -46,10 +46,13 @@ final class NetworkOperation: Operation {
                 self?.complete(result: .success(data))
             }
         })
-        if let urlSesstiontask = urlSessionTask, let urlSessionTaskProgressObserver = urlSessionTaskProgressObserver {
+        if // urlSessionTaskProgressObserver exists
+            let urlSesstiontask = urlSessionTask,
+            let urlSessionTaskProgressObserver = urlSessionTaskProgressObserver {
+            let handler = urlSessionTaskProgressObserver.changeNetworkOperationProgressHandler
             let progressObserver = urlSesstiontask.progress.observe(\.fractionCompleted,
                                                                     options: .new,
-                                                                    changeHandler: urlSessionTaskProgressObserver.changeNetworkOperationProgressHandler)
+                                                                    changeHandler: handler)
             urlSessionTaskProgressObserver.setNetworkOperationProgressObserver(to: progressObserver)
         }
         urlSessionTask?.resume()
