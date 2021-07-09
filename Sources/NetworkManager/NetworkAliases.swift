@@ -1,6 +1,6 @@
 //
 //  NetworkAliases.swift
-//  
+//
 //
 //  Created by Albert Grislis on 13.02.2021.
 //

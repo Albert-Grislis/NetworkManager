@@ -1,6 +1,6 @@
 //
 //  NetworkManagerProtocol.swift
-//  
+//
 //
 //  Created by Albert Grislis on 14.04.2021.
 //
