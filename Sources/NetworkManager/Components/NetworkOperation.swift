@@ -1,6 +1,6 @@
 //
 //  NetworkOperation.swift
-//  
+//
 //
 //  Created by Albert Grislis on 13.02.2021.
 //
@@ -39,13 +39,13 @@ final class NetworkOperation: Operation {
         guard !isCancelled else {
             return
         }
-        urlSessionTask = urlSession.dataTask(with: urlRequest, completionHandler: { [weak self] data, response, error in
+        urlSessionTask = urlSession.dataTask(with: urlRequest) { [weak self] data, response, error in
             if let error = error {
                 self?.complete(result: .failure(error))
             } else if let data = data {
                 self?.complete(result: .success(data))
             }
-        })
+        }
         if // urlSessionTaskProgressObserver exists
             let urlSesstiontask = urlSessionTask,
             let urlSessionTaskProgressObserver = urlSessionTaskProgressObserver {

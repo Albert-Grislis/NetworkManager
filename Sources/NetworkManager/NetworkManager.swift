@@ -1,6 +1,6 @@
 //
 //  NetworkManager.swift
-//  
+//
 //
 //  Created by Albert Grislis on 13.02.2021.
 //
@@ -41,7 +41,8 @@ extension NetworkManager: NetworkManagerProtocol {
         let urlRequest = URLRequest(url: url)
         rawData(urlRequest: urlRequest,
                 completionHandlerQueue: completionHandlerQueue,
-                completionHandler: completionHandler, progressObserver: progressObserver)
+                completionHandler: completionHandler,
+                progressObserver: progressObserver)
     }
     
     public func rawData(urlRequest: URLRequest,
