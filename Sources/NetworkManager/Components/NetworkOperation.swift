@@ -10,12 +10,12 @@ import Utils
 
 final class NetworkOperation: Operation {
     
-    // MARK: Public properties
+    // MARK: Internal properties
     let urlRequest: URLRequest
-    
-    // MARK: Private properties
     private(set) var completionHandlersQueue: DispatchQueue
-    @Atomic private(set) var completionHandlers: [NetworkCompletionHandler]
+    @UnfairLock private(set) var completionHandlers: [NetworkCompletionHandler]
+
+    // MARK: Private properties
     private weak var urlSessionTaskProgressObserver: NetworkOperationProgressObservationProtocol?
     private let urlSession: URLSession
     private var urlSessionTask: URLSessionTask?
@@ -23,9 +23,9 @@ final class NetworkOperation: Operation {
     // MARK: Initializers & Deinitializers
     init(urlSession: URLSession,
          urlRequest: URLRequest,
-         completionHandlersQueue: DispatchQueue = .main,
-         completionHandlers: [NetworkCompletionHandler]? = nil,
-         progressObserver: NetworkOperationProgressObservationProtocol? = nil) {
+         completionHandlersQueue: DispatchQueue,
+         completionHandlers: [NetworkCompletionHandler]?,
+         progressObserver: NetworkOperationProgressObservationProtocol?) {
         self.urlRequest = urlRequest
         self.completionHandlersQueue = completionHandlersQueue
         self.completionHandlers = completionHandlers ?? []
@@ -34,12 +34,12 @@ final class NetworkOperation: Operation {
         super.init()
     }
     
-    // MARK: Public methods
+    // MARK: Internal methods
     override func main() {
-        guard !isCancelled else {
+        guard !self.isCancelled else {
             return
         }
-        urlSessionTask = urlSession.dataTask(with: urlRequest) { [weak self] data, response, error in
+        self.urlSessionTask = self.urlSession.dataTask(with: self.urlRequest) { [weak self] data, response, error in
             if let error = error {
                 self?.complete(result: .failure(error))
             } else if let data = data {
@@ -47,39 +47,35 @@ final class NetworkOperation: Operation {
             }
         }
         if // urlSessionTaskProgressObserver exists
-            let urlSesstiontask = urlSessionTask,
-            let urlSessionTaskProgressObserver = urlSessionTaskProgressObserver {
-            let handler = urlSessionTaskProgressObserver.changeNetworkOperationProgressHandler
-            let progressObserver = urlSesstiontask.progress.observe(\.fractionCompleted,
-                                                                    options: .new,
-                                                                    changeHandler: handler)
-            urlSessionTaskProgressObserver.setNetworkOperationProgressObserver(to: progressObserver)
+            let urlSesstiontask = self.urlSessionTask,
+            let urlSessionTaskProgressObserver = self.urlSessionTaskProgressObserver {
+            urlSessionTaskProgressObserver.observe(progress: urlSesstiontask.progress)
         }
-        urlSessionTask?.resume()
+        self.urlSessionTask?.resume()
     }
     
     override func cancel() {
         super.cancel()
-        urlSessionTask?.cancel()
-        urlSessionTaskProgressObserver?.invalidateNetworkOperationProgressObservation?()
+        self.urlSessionTask?.cancel()
+        self.urlSessionTaskProgressObserver?.invalidateNetworkOperationProgressObservation()
     }
     
     func appendCompletionHandlers(contentsOf sequence: [NetworkCompletionHandler]) {
-        if !isCancelled {
-            completionHandlers.append(contentsOf: sequence)
+        if !self.isCancelled {
+            self.completionHandlers.append(contentsOf: sequence)
         }
     }
     
     func removeLastCompletionHandler() {
-        if !isCancelled {
-            _ = completionHandlers.removeLast()
+        if !self.isCancelled {
+            _ = self.completionHandlers.removeLast()
         }
     }
     
     // MARK: Private methods
     private func complete(result: Result<Data, Error>) {
-        if !isCancelled {
-            completionHandlersQueue.async { [weak self] in
+        if !self.isCancelled {
+            self.completionHandlersQueue.async { [weak self] in
                 self?.completionHandlers.forEach { completionHandler in
                     completionHandler(result)
                 }

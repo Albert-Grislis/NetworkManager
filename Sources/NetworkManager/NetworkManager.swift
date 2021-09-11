@@ -8,10 +8,10 @@
 import Foundation
 import Utils
 
-final public class NetworkManager: NSObject {
+public final class NetworkManager: NSObject {
     
     // MARK: Private properties
-    @Atomic private var operations: [URLRequest: NetworkOperation]
+    @UnfairLock private var operations: [URLRequest: NetworkOperation]
     private let operationQueue: OperationQueue
     private let urlSession: URLSession
     
@@ -36,13 +36,31 @@ final public class NetworkManager: NSObject {
 extension NetworkManager: NetworkManagerProtocol {
     public func rawData(url: URL,
                         completionHandlerQueue: DispatchQueue,
+                        completionHandler: @escaping NetworkCompletionHandler) {
+        self.rawData(url: url,
+                     completionHandlerQueue: completionHandlerQueue,
+                     completionHandler: completionHandler,
+                     progressObserver: nil)
+    }
+
+    public func rawData(urlRequest: URLRequest,
+                        completionHandlerQueue: DispatchQueue,
+                        completionHandler: @escaping NetworkCompletionHandler) {
+        self.rawData(urlRequest: urlRequest,
+                     completionHandlerQueue: completionHandlerQueue,
+                     completionHandler: completionHandler,
+                     progressObserver: nil)
+    }
+
+    public func rawData(url: URL,
+                        completionHandlerQueue: DispatchQueue,
                         completionHandler: @escaping NetworkCompletionHandler,
                         progressObserver: NetworkOperationProgressObservationProtocol?) {
         let urlRequest = URLRequest(url: url)
-        rawData(urlRequest: urlRequest,
-                completionHandlerQueue: completionHandlerQueue,
-                completionHandler: completionHandler,
-                progressObserver: progressObserver)
+        self.rawData(urlRequest: urlRequest,
+                     completionHandlerQueue: completionHandlerQueue,
+                     completionHandler: completionHandler,
+                     progressObserver: progressObserver)
     }
     
     public func rawData(urlRequest: URLRequest,
@@ -50,23 +68,23 @@ extension NetworkManager: NetworkManagerProtocol {
                         completionHandler: @escaping NetworkCompletionHandler,
                         progressObserver: NetworkOperationProgressObservationProtocol?) {
         // RemovingCompletionHandler is always last in the NetworkOperation.completionHandlers property to avoid overhead of CPU and memory usage
-        let removingCompletionHandler = createRemovingCompletionHandler(with: urlRequest)
-        if let networkOperation = operations[urlRequest] {
+        let removingCompletionHandler = self.createRemovingCompletionHandler(with: urlRequest)
+        if let networkOperation = self.operations[urlRequest] {
             networkOperation.removeLastCompletionHandler()
             networkOperation.appendCompletionHandlers(contentsOf: [completionHandler, removingCompletionHandler])
         } else {
-            let networkOperation = NetworkOperation(urlSession: urlSession,
+            let networkOperation = NetworkOperation(urlSession: self.urlSession,
                                                     urlRequest: urlRequest,
                                                     completionHandlersQueue: completionHandlerQueue,
                                                     completionHandlers: [completionHandler, removingCompletionHandler],
                                                     progressObserver: progressObserver)
-            operations.updateValue(networkOperation, forKey: urlRequest)
-            operationQueue.addOperation(networkOperation)
+            self.operations.updateValue(networkOperation, forKey: urlRequest)
+            self.operationQueue.addOperation(networkOperation)
         }
     }
     
     public func cancelAnyTasksIfNeeded(at urlRequest: URLRequest) {
-        operations[urlRequest]?.cancel()
-        operations.removeValue(forKey: urlRequest)
+        self.operations[urlRequest]?.cancel()
+        self.operations.removeValue(forKey: urlRequest)
     }
 }

@@ -12,11 +12,21 @@ public protocol NetworkManagerProtocol {
     // MARK: Public methods
     func rawData(url: URL,
                  completionHandlerQueue: DispatchQueue,
+                 completionHandler: @escaping NetworkCompletionHandler)
+
+    func rawData(url: URL,
+                 completionHandlerQueue: DispatchQueue,
                  completionHandler: @escaping NetworkCompletionHandler,
                  progressObserver: NetworkOperationProgressObservationProtocol?)
+
+    func rawData(urlRequest: URLRequest,
+                 completionHandlerQueue: DispatchQueue,
+                 completionHandler: @escaping NetworkCompletionHandler)
+
     func rawData(urlRequest: URLRequest,
                  completionHandlerQueue: DispatchQueue,
                  completionHandler: @escaping NetworkCompletionHandler,
                  progressObserver: NetworkOperationProgressObservationProtocol?)
+
     func cancelAnyTasksIfNeeded(at urlRequest: URLRequest)
 }
