@@ -1,5 +1,5 @@
 //
-//  NetworkOperation.swift
+//  RawNetworkOperation.swift
 //
 //
 //  Created by Albert Grislis on 13.02.2021.
@@ -8,12 +8,12 @@
 import Foundation
 import Utils
 
-final class NetworkOperation: Operation {
+class RawNetworkOperation: Operation {
     
     // MARK: Internal properties
     let urlRequest: URLRequest
     private(set) var completionHandlersQueue: DispatchQueue
-    @UnfairLock private(set) var completionHandlers: [NetworkCompletionHandler]
+    @UnfairLock private(set) var rawNetowrkRequestCompletionHandlers: [RawNetworkRequestCompletionHandler]
 
     // MARK: Private properties
     private weak var urlSessionTaskProgressObserver: NetworkOperationProgressObservationProtocol?
@@ -24,11 +24,11 @@ final class NetworkOperation: Operation {
     init(urlSession: URLSession,
          urlRequest: URLRequest,
          completionHandlersQueue: DispatchQueue,
-         completionHandlers: [NetworkCompletionHandler]?,
+         rawNetowrkRequestCompletionHandlers: [RawNetworkRequestCompletionHandler]?,
          progressObserver: NetworkOperationProgressObservationProtocol?) {
         self.urlRequest = urlRequest
         self.completionHandlersQueue = completionHandlersQueue
-        self.completionHandlers = completionHandlers ?? []
+        self.rawNetowrkRequestCompletionHandlers = rawNetowrkRequestCompletionHandlers ?? []
         self.urlSessionTaskProgressObserver = progressObserver
         self.urlSession = urlSession
         super.init()
@@ -60,23 +60,22 @@ final class NetworkOperation: Operation {
         self.urlSessionTaskProgressObserver?.invalidateNetworkOperationProgressObservation()
     }
     
-    func appendCompletionHandlers(contentsOf sequence: [NetworkCompletionHandler]) {
+    func appendCompletionHandlers(contentsOf sequence: [RawNetworkRequestCompletionHandler]) {
         if !self.isCancelled {
-            self.completionHandlers.append(contentsOf: sequence)
+            self.rawNetowrkRequestCompletionHandlers.append(contentsOf: sequence)
         }
     }
     
     func removeLastCompletionHandler() {
         if !self.isCancelled {
-            _ = self.completionHandlers.removeLast()
+            self.rawNetowrkRequestCompletionHandlers.removeLast()
         }
     }
-    
-    // MARK: Private methods
-    private func complete(result: Result<Data, Error>) {
+
+    func complete(result: Result<Data, Error>) {
         if !self.isCancelled {
-            self.completionHandlersQueue.async { [weak self] in
-                self?.completionHandlers.forEach { completionHandler in
+            self.completionHandlersQueue.sync { [weak self] in
+                self?.rawNetowrkRequestCompletionHandlers.forEach { completionHandler in
                     completionHandler(result)
                 }
             }
