@@ -14,18 +14,20 @@ class RawNetworkOperation: Operation {
     let urlRequest: URLRequest
     private(set) var completionHandlersQueue: DispatchQueue
     @UnfairLock private(set) var rawNetowrkRequestCompletionHandlers: [RawNetworkRequestCompletionHandler]
-
+    
     // MARK: Private properties
     private weak var urlSessionTaskProgressObserver: NetworkOperationProgressObservationProtocol?
     private let urlSession: URLSession
     private var urlSessionTask: URLSessionTask?
     
     // MARK: Initializers & Deinitializers
-    init(urlSession: URLSession,
-         urlRequest: URLRequest,
-         completionHandlersQueue: DispatchQueue,
-         rawNetowrkRequestCompletionHandlers: [RawNetworkRequestCompletionHandler]?,
-         progressObserver: NetworkOperationProgressObservationProtocol?) {
+    init(
+        urlSession: URLSession,
+        urlRequest: URLRequest,
+        completionHandlersQueue: DispatchQueue,
+        rawNetowrkRequestCompletionHandlers: [RawNetworkRequestCompletionHandler]?,
+        progressObserver: NetworkOperationProgressObservationProtocol?
+    ) {
         self.urlRequest = urlRequest
         self.completionHandlersQueue = completionHandlersQueue
         self.rawNetowrkRequestCompletionHandlers = rawNetowrkRequestCompletionHandlers ?? []
@@ -39,7 +41,7 @@ class RawNetworkOperation: Operation {
         guard !self.isCancelled else {
             return
         }
-        self.urlSessionTask = self.urlSession.dataTask(with: self.urlRequest) { [weak self] data, response, error in
+        self.urlSessionTask = self.urlSession.dataTask(with: self.urlRequest) { [weak self] (data, response, error) in
             if let error = error {
                 self?.complete(result: .failure(error))
             } else if let data = data {
@@ -71,11 +73,11 @@ class RawNetworkOperation: Operation {
             self.rawNetowrkRequestCompletionHandlers.removeLast()
         }
     }
-
+    
     func complete(result: Result<Data, Error>) {
         if !self.isCancelled {
             self.completionHandlersQueue.sync { [weak self] in
-                self?.rawNetowrkRequestCompletionHandlers.forEach { completionHandler in
+                self?.rawNetowrkRequestCompletionHandlers.forEach { (completionHandler) in
                     completionHandler(result)
                 }
             }
