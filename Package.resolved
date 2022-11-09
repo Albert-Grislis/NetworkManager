@@ -1,16 +1,14 @@
 {
-  "object": {
-    "pins": [
-      {
-        "package": "Utils",
-        "repositoryURL": "https://github.com/Albert-Grislis/Utils",
-        "state": {
-          "branch": "main",
-          "revision": "40a32d85b241ceda4fb4565ca3e3c4f0e1e0de39",
-          "version": null
-        }
+  "pins" : [
+    {
+      "identity" : "utils",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Albert-Grislis/Utils",
+      "state" : {
+        "branch" : "main",
+        "revision" : "8b3dba6b7a2e88254e67d321d641a9bd6dad8433"
       }
-    ]
-  },
-  "version": 1
+    }
+  ],
+  "version" : 2
 }
