@@ -31,7 +31,7 @@ final class MappedNetworkOperation<ResponseType>: RawNetworkOperation where Resp
             urlSession: urlSession,
             urlRequest: urlRequest,
             completionHandlersQueue: completionHandlersQueue,
-            rawNetowrkRequestCompletionHandlers: [],
+            rawNetworkRequestCompletionHandlers: [],
             progressObserver: progressObserver
         )
     }

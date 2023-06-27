@@ -186,7 +186,7 @@ extension NetworkManager: NetworkManagerProtocol {
                 urlSession: self.urlSession,
                 urlRequest: urlRequest,
                 completionHandlersQueue: completionHandlerQueue,
-                rawNetowrkRequestCompletionHandlers: [completionHandler, removingCompletionHandler],
+                rawNetworkRequestCompletionHandlers: [completionHandler, removingCompletionHandler],
                 progressObserver: progressObserver
             )
             self.startTrackingAndThenPerform(

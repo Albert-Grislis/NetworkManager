@@ -25,12 +25,12 @@ class RawNetworkOperation: Operation {
         urlSession: URLSession,
         urlRequest: URLRequest,
         completionHandlersQueue: DispatchQueue,
-        rawNetowrkRequestCompletionHandlers: [RawNetworkRequestCompletionHandler]?,
+        rawNetworkRequestCompletionHandlers: [RawNetworkRequestCompletionHandler]?,
         progressObserver: NetworkOperationProgressObservationProtocol?
     ) {
         self.urlRequest = urlRequest
         self.completionHandlersQueue = completionHandlersQueue
-        self.rawNetowrkRequestCompletionHandlers = rawNetowrkRequestCompletionHandlers ?? []
+        self.rawNetowrkRequestCompletionHandlers = rawNetworkRequestCompletionHandlers ?? []
         self.urlSessionTaskProgressObserver = progressObserver
         self.urlSession = urlSession
         super.init()
