@@ -13,7 +13,7 @@ let package = Package(
             name: "NetworkManager",
             type: .dynamic,
             targets: [
-                "NetworkManager"
+                "NetworkManager",
             ]
         ),
     ],
@@ -27,11 +27,7 @@ let package = Package(
         .target(
             name: "NetworkManager",
             dependencies: [
-                .product(
-                    name: "Utils",
-                    package: "Utils",
-                    condition: .none
-                ),
+                "Utils",
             ]
         ),
     ]
