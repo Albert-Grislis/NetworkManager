@@ -10,64 +10,94 @@ import Utils
 
 final class MappedNetworkOperation<ResponseType>: RawNetworkOperation where ResponseType: Decodable {
     
-    // MARK: Internal properties
-    @UnfairLock private(set) var mappedNetworkRequestCompletionHandlers: [MappedNetworkRequestCompletionHandler<ResponseType>]
-    
     // MARK: Private properties
     private let mapper: MapperProtocol
+    @UnfairLock private var mappedDataCompletionHandlersHashTable: [DispatchQueue: [MappedNetworkRequestCompletionHandler<ResponseType>]]
     
     // MARK: Initializers & Deinitializers
     init(
-        urlSession: URLSession,
         urlRequest: URLRequest,
+        urlSession: URLSession,
+        progressObserver: NetworkOperationProgressObservationProtocol?,
         mapper: MapperProtocol,
-        completionHandlersQueue: DispatchQueue,
-        mappedNetworkRequestCompletionHandlers: [MappedNetworkRequestCompletionHandler<ResponseType>]?,
-        progressObserver: NetworkOperationProgressObservationProtocol?
+        mappedDataCompletionHandlersHashTable: [DispatchQueue: [MappedNetworkRequestCompletionHandler<ResponseType>]]?
     ) {
-        self.mappedNetworkRequestCompletionHandlers = mappedNetworkRequestCompletionHandlers ?? []
         self.mapper = mapper
+        self.mappedDataCompletionHandlersHashTable = mappedDataCompletionHandlersHashTable ?? [:]
         super.init(
-            urlSession: urlSession,
             urlRequest: urlRequest,
-            completionHandlersQueue: completionHandlersQueue,
-            rawNetworkRequestCompletionHandlers: [],
-            progressObserver: progressObserver
+            urlSession: urlSession,
+            progressObserver: progressObserver,
+            completionHandlersHashTable: [:]
         )
     }
     
     // MARK: Internal methods
-    func appendCompletionHandlers(
-        contentsOf sequence: [MappedNetworkRequestCompletionHandler<ResponseType>]
+    func mergeCompletionHandlers(
+        contentsOf sequence: [DispatchQueue: [MappedNetworkRequestCompletionHandler<ResponseType>]]
     ) {
         if !self.isCancelled {
-            self.mappedNetworkRequestCompletionHandlers.append(contentsOf: sequence)
-        }
-    }
-    
-    override func removeLastCompletionHandler() {
-        if !self.isCancelled {
-            self.mappedNetworkRequestCompletionHandlers.removeLast()
+            sequence.forEach { (queue, completionHandlers) in
+                if var currentCompletionHandlers = self.mappedDataCompletionHandlersHashTable[queue] {
+                    currentCompletionHandlers.append(contentsOf: completionHandlers)
+                    self.safeMutateMappedDataCompletionHandlersHashTable(
+                        completionHandlers: currentCompletionHandlers,
+                        forKey: queue
+                    )
+                } else {
+                    self.safeMutateMappedDataCompletionHandlersHashTable(
+                        completionHandlers: completionHandlers,
+                        forKey: queue
+                    )
+                }
+            }
         }
     }
     
     override func complete(result: Result<Data, Error>) {
-        if !self.isCancelled {
-            switch result {
-            case let .success(data):
-                let mappedData: ResponseType = mapper.map(data: data)
-                self.completionHandlersQueue.sync { [weak self] in
-                    self?.mappedNetworkRequestCompletionHandlers.forEach { (completionHandler) in
-                        completionHandler(.success(mappedData))
+        guard !self.isCancelled else {
+            return
+        }
+        switch result {
+        case let .success(data):
+            do {
+                let mappedData: ResponseType = try self.mapper.map(data: data)
+                self.mappedDataCompletionHandlersHashTable.forEach { (queue, completionHandlers) in
+                    queue.sync {
+                        completionHandlers.forEach { (completionHandler) in
+                            completionHandler(.success(mappedData))
+                        }
                     }
                 }
-            case let .failure(error):
-                self.completionHandlersQueue.sync { [weak self] in
-                    self?.mappedNetworkRequestCompletionHandlers.forEach { (completionHandler) in
-                        completionHandler(.failure(error))
-                    }
+            } catch {
+                self.complete(failure: error)
+            }
+        case let .failure(error):
+            self.complete(failure: error)
+        }
+    }
+    
+    // MARK: Private methods
+    private func complete(failure error: Error) {
+        self.mappedDataCompletionHandlersHashTable.forEach { (queue, completionHandlers) in
+            queue.sync {
+                completionHandlers.forEach { (completionHandler) in
+                    completionHandler(.failure(error))
                 }
             }
+        }
+    }
+    
+    // MARK: Private methods
+    private func safeMutateMappedDataCompletionHandlersHashTable(
+        completionHandlers: [MappedNetworkRequestCompletionHandler<ResponseType>],
+        forKey queue: DispatchQueue
+    ) {
+        self._mappedDataCompletionHandlersHashTable.mutate { (completionHandlersHashTable) in
+            completionHandlersHashTable.updateValue(
+                completionHandlers,
+                forKey: queue
+            )
         }
     }
 }

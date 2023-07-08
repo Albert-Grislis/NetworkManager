@@ -28,26 +28,21 @@ public final class NetworkManager: NSObject {
     }
     
     // MARK: Private methods
-    private func createRemovingCompletionHandler(with urlRequest: URLRequest) -> RawNetworkRequestCompletionHandler {
-        return { [weak self] _ in
-            self?.operations.removeValue(forKey: urlRequest)
-        }
-    }
-    
-    private func createRemovingCompletionHandler<ResponseType>(with urlRequest: URLRequest) -> MappedNetworkRequestCompletionHandler<ResponseType> where ResponseType: Decodable {
-        return { [weak self] _ in
-            self?.operations.removeValue(forKey: urlRequest)
-        }
-    }
-    
     private func startTrackingAndThenPerform(
         operation: RawNetworkOperation,
         forKey urlRequest: URLRequest
     ) {
-        self.operations.updateValue(
-            operation,
-            forKey: urlRequest
-        )
+        operation.completionBlock = { [weak self] in
+            self?._operations.mutate { (operations) in
+                operations.removeValue(forKey: urlRequest)
+            }
+        }
+        self._operations.mutate { (operations) in
+            operations.updateValue(
+                operation,
+                forKey: urlRequest
+            )
+        }
         self.operationQueue.addOperation(operation)
     }
 }
@@ -108,19 +103,15 @@ extension NetworkManager: NetworkManagerProtocol {
         completionHandler: @escaping MappedNetworkRequestCompletionHandler<ResponseType>,
         progressObserver: NetworkOperationProgressObservationProtocol?
     ) where ResponseType: Decodable {
-        // RemovingCompletionHandler is always last in the MappedNetworkOperation.mappedNetowrkRequestCompletionHandlers property to avoid overhead of CPU and memory usage
-        let removingCompletionHandler: MappedNetworkRequestCompletionHandler<ResponseType> = self.createRemovingCompletionHandler(with: urlRequest)
         if let mappedNetworkOperation = self.operations[urlRequest] as? MappedNetworkOperation<ResponseType> {
-            mappedNetworkOperation.removeLastCompletionHandler()
-            mappedNetworkOperation.appendCompletionHandlers(contentsOf: [completionHandler, removingCompletionHandler])
+            mappedNetworkOperation.mergeCompletionHandlers(contentsOf: [completionHandlerQueue: [completionHandler]])
         } else {
             let mappedNetworkOperation = MappedNetworkOperation(
-                urlSession: self.urlSession,
                 urlRequest: urlRequest,
+                urlSession: self.urlSession,
+                progressObserver: progressObserver,
                 mapper: mapper,
-                completionHandlersQueue: completionHandlerQueue,
-                mappedNetworkRequestCompletionHandlers: [completionHandler, removingCompletionHandler],
-                progressObserver: progressObserver
+                mappedDataCompletionHandlersHashTable: [completionHandlerQueue: [completionHandler]]
             )
             self.startTrackingAndThenPerform(
                 operation: mappedNetworkOperation,
@@ -176,18 +167,14 @@ extension NetworkManager: NetworkManagerProtocol {
         completionHandler: @escaping RawNetworkRequestCompletionHandler,
         progressObserver: NetworkOperationProgressObservationProtocol?
     ) {
-        // RemovingCompletionHandler is always last in the RawNetworkOperation.completionHandlers property to avoid overhead of CPU and memory usage
-        let removingCompletionHandler: RawNetworkRequestCompletionHandler = self.createRemovingCompletionHandler(with: urlRequest)
         if let rawNetworkOperation = self.operations[urlRequest] {
-            rawNetworkOperation.removeLastCompletionHandler()
-            rawNetworkOperation.appendCompletionHandlers(contentsOf: [completionHandler, removingCompletionHandler])
+            rawNetworkOperation.mergeCompletionHandlers(contentsOf: [completionHandlerQueue: [completionHandler]])
         } else {
             let rawNetworkOperation = RawNetworkOperation(
-                urlSession: self.urlSession,
                 urlRequest: urlRequest,
-                completionHandlersQueue: completionHandlerQueue,
-                rawNetworkRequestCompletionHandlers: [completionHandler, removingCompletionHandler],
-                progressObserver: progressObserver
+                urlSession: self.urlSession,
+                progressObserver: progressObserver,
+                completionHandlersHashTable: [completionHandlerQueue: [completionHandler]]
             )
             self.startTrackingAndThenPerform(
                 operation: rawNetworkOperation,
@@ -197,7 +184,6 @@ extension NetworkManager: NetworkManagerProtocol {
     }
     
     public func cancelAnyTasksIfNeeded(at urlRequest: URLRequest) {
-        self.operations[urlRequest]?.cancel()
-        self.operations.removeValue(forKey: urlRequest)
+        self.operations.removeValue(forKey: urlRequest)?.cancel()
     }
 }

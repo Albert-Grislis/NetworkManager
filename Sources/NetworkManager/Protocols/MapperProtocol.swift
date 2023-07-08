@@ -8,5 +8,5 @@
 import Foundation
 
 public protocol MapperProtocol {
-    func map<ResponseType>(data: Data) -> ResponseType where ResponseType: Decodable
+    func map<ResponseType>(data: Data) throws -> ResponseType where ResponseType: Decodable
 }

@@ -8,32 +8,33 @@
 import Foundation
 import Utils
 
-class RawNetworkOperation: Operation {
+class RawNetworkOperation: AsynchronousOperation {
     
     // MARK: Internal properties
     let urlRequest: URLRequest
-    private(set) var completionHandlersQueue: DispatchQueue
-    @UnfairLock private(set) var rawNetowrkRequestCompletionHandlers: [RawNetworkRequestCompletionHandler]
     
     // MARK: Private properties
-    private weak var urlSessionTaskProgressObserver: NetworkOperationProgressObservationProtocol?
     private let urlSession: URLSession
     private var urlSessionTask: URLSessionTask?
+    private weak var urlSessionTaskProgressObserver: NetworkOperationProgressObservationProtocol?
+    @UnfairLock private var completionHandlersHashTable: [DispatchQueue: [RawNetworkRequestCompletionHandler]]
     
     // MARK: Initializers & Deinitializers
     init(
-        urlSession: URLSession,
         urlRequest: URLRequest,
-        completionHandlersQueue: DispatchQueue,
-        rawNetworkRequestCompletionHandlers: [RawNetworkRequestCompletionHandler]?,
-        progressObserver: NetworkOperationProgressObservationProtocol?
+        urlSession: URLSession,
+        progressObserver: NetworkOperationProgressObservationProtocol?,
+        completionHandlersHashTable: [DispatchQueue: [RawNetworkRequestCompletionHandler]]?
     ) {
         self.urlRequest = urlRequest
-        self.completionHandlersQueue = completionHandlersQueue
-        self.rawNetowrkRequestCompletionHandlers = rawNetworkRequestCompletionHandlers ?? []
-        self.urlSessionTaskProgressObserver = progressObserver
         self.urlSession = urlSession
+        self.urlSessionTaskProgressObserver = progressObserver
+        self.completionHandlersHashTable = completionHandlersHashTable ?? [:]
         super.init()
+    }
+    
+    deinit {
+        self.urlSessionTaskProgressObserver?.invalidateNetworkOperationProgressObservation()
     }
     
     // MARK: Internal methods
@@ -41,7 +42,10 @@ class RawNetworkOperation: Operation {
         guard !self.isCancelled else {
             return
         }
-        self.urlSessionTask = self.urlSession.dataTask(with: self.urlRequest) { [weak self] (data, response, error) in
+        self.urlSessionTask = self.urlSession.dataTask(with: self.urlRequest) { [weak self] (data, _, error) in
+            defer {
+                self?.finish()
+            }
             if let error = error {
                 self?.complete(result: .failure(error))
             } else if let data = data {
@@ -49,9 +53,9 @@ class RawNetworkOperation: Operation {
             }
         }
         if // urlSessionTaskProgressObserver exists
-            let urlSesstiontask = self.urlSessionTask,
+            let urlSessionTask = self.urlSessionTask,
             let urlSessionTaskProgressObserver = self.urlSessionTaskProgressObserver {
-            urlSessionTaskProgressObserver.observe(progress: urlSesstiontask.progress)
+            urlSessionTaskProgressObserver.observe(progress: urlSessionTask.progress)
         }
         self.urlSessionTask?.resume()
     }
@@ -62,25 +66,49 @@ class RawNetworkOperation: Operation {
         self.urlSessionTaskProgressObserver?.invalidateNetworkOperationProgressObservation()
     }
     
-    func appendCompletionHandlers(contentsOf sequence: [RawNetworkRequestCompletionHandler]) {
+    func mergeCompletionHandlers(
+        contentsOf sequence: [DispatchQueue: [RawNetworkRequestCompletionHandler]]
+    ) {
         if !self.isCancelled {
-            self.rawNetowrkRequestCompletionHandlers.append(contentsOf: sequence)
-        }
-    }
-    
-    func removeLastCompletionHandler() {
-        if !self.isCancelled {
-            self.rawNetowrkRequestCompletionHandlers.removeLast()
+            sequence.forEach { (queue, completionHandlers) in
+                if var currentCompletionHandlers = self.completionHandlersHashTable[queue] {
+                    currentCompletionHandlers.append(contentsOf: completionHandlers)
+                    self.safeMutateCompletionHandlersHashTable(
+                        completionHandlers: currentCompletionHandlers,
+                        forKey: queue
+                    )
+                } else {
+                    self.safeMutateCompletionHandlersHashTable(
+                        completionHandlers: completionHandlers,
+                        forKey: queue
+                    )
+                }
+            }
         }
     }
     
     func complete(result: Result<Data, Error>) {
         if !self.isCancelled {
-            self.completionHandlersQueue.sync { [weak self] in
-                self?.rawNetowrkRequestCompletionHandlers.forEach { (completionHandler) in
-                    completionHandler(result)
+            self.completionHandlersHashTable.forEach { (queue, completionHandlers) in
+                queue.sync {
+                    completionHandlers.forEach { (completionHandler) in
+                        completionHandler(result)
+                    }
                 }
             }
+        }
+    }
+    
+    // MARK: Private methods
+    private func safeMutateCompletionHandlersHashTable(
+        completionHandlers: [RawNetworkRequestCompletionHandler],
+        forKey queue: DispatchQueue
+    ) {
+        self._completionHandlersHashTable.mutate { (completionHandlersHashTable) in
+            completionHandlersHashTable.updateValue(
+                completionHandlers,
+                forKey: queue
+            )
         }
     }
 }
