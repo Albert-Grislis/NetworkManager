@@ -28,7 +28,7 @@ public final class NetworkManager: NSObject {
     }
     
     // MARK: Private methods
-    private func startTrackingAndThenPerform(
+    private func startTrackingAndPerform(
         operation: RawNetworkOperation,
         forKey urlRequest: URLRequest
     ) {
@@ -113,7 +113,7 @@ extension NetworkManager: NetworkManagerProtocol {
                 mapper: mapper,
                 mappedDataCompletionHandlersHashTable: [completionHandlerQueue: [completionHandler]]
             )
-            self.startTrackingAndThenPerform(
+            self.startTrackingAndPerform(
                 operation: mappedNetworkOperation,
                 forKey: urlRequest
             )
@@ -176,7 +176,7 @@ extension NetworkManager: NetworkManagerProtocol {
                 progressObserver: progressObserver,
                 completionHandlersHashTable: [completionHandlerQueue: [completionHandler]]
             )
-            self.startTrackingAndThenPerform(
+            self.startTrackingAndPerform(
                 operation: rawNetworkOperation,
                 forKey: urlRequest
             )
