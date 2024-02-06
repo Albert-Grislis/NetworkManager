@@ -88,12 +88,11 @@ class RawNetworkOperation: AsynchronousOperation {
     }
     
     func complete(result: Result<Data, Error>) {
-        if !self.isCancelled {
-            self.completionHandlersHashTable.forEach { (queue, completionHandlers) in
-                queue.sync {
-                    completionHandlers.forEach { (completionHandler) in
-                        completionHandler(result)
-                    }
+        guard !self.isCancelled else { return }
+        self.completionHandlersHashTable.forEach { (queue, completionHandlers) in
+            queue.sync {
+                completionHandlers.forEach { (completionHandler) in
+                    completionHandler(result)
                 }
             }
         }

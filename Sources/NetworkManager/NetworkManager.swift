@@ -55,7 +55,7 @@ extension NetworkManager: NetworkManagerProtocol {
         completionHandlerQueue: DispatchQueue,
         completionHandler: @escaping MappedNetworkRequestCompletionHandler<ResponseType>
     ) where ResponseType: Decodable {
-        mappedData(
+        self.mappedData(
             url: url,
             mapper: mapper,
             completionHandlerQueue: completionHandlerQueue,
@@ -72,7 +72,7 @@ extension NetworkManager: NetworkManagerProtocol {
         progressObserver: NetworkOperationProgressObservationProtocol?
     ) where ResponseType: Decodable {
         let urlRequest = URLRequest(url: url)
-        mappedData(
+        self.mappedData(
             urlRequest: urlRequest,
             mapper: mapper,
             completionHandlerQueue: completionHandlerQueue,
@@ -87,7 +87,7 @@ extension NetworkManager: NetworkManagerProtocol {
         completionHandlerQueue: DispatchQueue,
         completionHandler: @escaping MappedNetworkRequestCompletionHandler<ResponseType>
     ) where ResponseType: Decodable {
-        mappedData(
+        self.mappedData(
             urlRequest: urlRequest,
             mapper: mapper,
             completionHandlerQueue: completionHandlerQueue,
