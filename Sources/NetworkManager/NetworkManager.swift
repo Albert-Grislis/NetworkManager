@@ -28,7 +28,7 @@ public final class NetworkManager: NSObject {
     }
     
     // MARK: Private methods
-    private func startTrackingAndThenPerform(
+    private func startTrackingAndPerform(
         operation: RawNetworkOperation,
         forKey urlRequest: URLRequest
     ) {
@@ -55,7 +55,7 @@ extension NetworkManager: NetworkManagerProtocol {
         completionHandlerQueue: DispatchQueue,
         completionHandler: @escaping MappedNetworkRequestCompletionHandler<ResponseType>
     ) where ResponseType: Decodable {
-        mappedData(
+        self.mappedData(
             url: url,
             mapper: mapper,
             completionHandlerQueue: completionHandlerQueue,
@@ -72,7 +72,7 @@ extension NetworkManager: NetworkManagerProtocol {
         progressObserver: NetworkOperationProgressObservationProtocol?
     ) where ResponseType: Decodable {
         let urlRequest = URLRequest(url: url)
-        mappedData(
+        self.mappedData(
             urlRequest: urlRequest,
             mapper: mapper,
             completionHandlerQueue: completionHandlerQueue,
@@ -87,7 +87,7 @@ extension NetworkManager: NetworkManagerProtocol {
         completionHandlerQueue: DispatchQueue,
         completionHandler: @escaping MappedNetworkRequestCompletionHandler<ResponseType>
     ) where ResponseType: Decodable {
-        mappedData(
+        self.mappedData(
             urlRequest: urlRequest,
             mapper: mapper,
             completionHandlerQueue: completionHandlerQueue,
@@ -113,7 +113,7 @@ extension NetworkManager: NetworkManagerProtocol {
                 mapper: mapper,
                 mappedDataCompletionHandlersHashTable: [completionHandlerQueue: [completionHandler]]
             )
-            self.startTrackingAndThenPerform(
+            self.startTrackingAndPerform(
                 operation: mappedNetworkOperation,
                 forKey: urlRequest
             )
@@ -176,7 +176,7 @@ extension NetworkManager: NetworkManagerProtocol {
                 progressObserver: progressObserver,
                 completionHandlersHashTable: [completionHandlerQueue: [completionHandler]]
             )
-            self.startTrackingAndThenPerform(
+            self.startTrackingAndPerform(
                 operation: rawNetworkOperation,
                 forKey: urlRequest
             )

@@ -36,20 +36,19 @@ final class MappedNetworkOperation<ResponseType>: RawNetworkOperation where Resp
     func mergeCompletionHandlers(
         contentsOf sequence: [DispatchQueue: [MappedNetworkRequestCompletionHandler<ResponseType>]]
     ) {
-        if !self.isCancelled {
-            sequence.forEach { (queue, completionHandlers) in
-                if var currentCompletionHandlers = self.mappedDataCompletionHandlersHashTable[queue] {
-                    currentCompletionHandlers.append(contentsOf: completionHandlers)
-                    self.safeMutateMappedDataCompletionHandlersHashTable(
-                        completionHandlers: currentCompletionHandlers,
-                        forKey: queue
-                    )
-                } else {
-                    self.safeMutateMappedDataCompletionHandlersHashTable(
-                        completionHandlers: completionHandlers,
-                        forKey: queue
-                    )
-                }
+        guard !self.isCancelled else { return }
+        sequence.forEach { (queue, completionHandlers) in
+            if var currentCompletionHandlers = self.mappedDataCompletionHandlersHashTable[queue] {
+                currentCompletionHandlers.append(contentsOf: completionHandlers)
+                self.safeMutateMappedDataCompletionHandlersHashTable(
+                    completionHandlers: currentCompletionHandlers,
+                    forKey: queue
+                )
+            } else {
+                self.safeMutateMappedDataCompletionHandlersHashTable(
+                    completionHandlers: completionHandlers,
+                    forKey: queue
+                )
             }
         }
     }
@@ -88,7 +87,6 @@ final class MappedNetworkOperation<ResponseType>: RawNetworkOperation where Resp
         }
     }
     
-    // MARK: Private methods
     private func safeMutateMappedDataCompletionHandlersHashTable(
         completionHandlers: [MappedNetworkRequestCompletionHandler<ResponseType>],
         forKey queue: DispatchQueue
