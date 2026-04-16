@@ -8,7 +8,7 @@
 import Foundation
 import Utils
 
-final class MappedNetworkOperation<ResponseType>: RawNetworkOperation where ResponseType: Decodable {
+final class MappedNetworkOperation<ResponseType>: RawNetworkOperation, @unchecked Sendable where ResponseType: Decodable {
     
     // MARK: Private properties
     private let mapper: MapperProtocol

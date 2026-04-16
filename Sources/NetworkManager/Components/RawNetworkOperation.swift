@@ -8,7 +8,7 @@
 import Foundation
 import Utils
 
-class RawNetworkOperation: AsynchronousOperation {
+class RawNetworkOperation: AsynchronousOperation, @unchecked Sendable {
     
     // MARK: Internal properties
     let urlRequest: URLRequest
