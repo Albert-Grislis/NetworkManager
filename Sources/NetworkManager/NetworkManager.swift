@@ -48,70 +48,70 @@ public final class NetworkManager: NSObject {
 }
 
 // MARK: NetworkManagerProtocol
-extension NetworkManager: NetworkManagerProtocol {
-    public func mappedData<ResponseType>(
+extension NetworkManager: NetworkManagerProtocol {    
+    public func mappedData<ResponseType, ErrorType>(
         url: URL,
         mapper: MapperProtocol,
         completionHandlerQueue: DispatchQueue,
-        completionHandler: @escaping MappedNetworkRequestCompletionHandler<ResponseType>
-    ) where ResponseType: Decodable {
+        completionHandlers: MappedNetworkRequestCompletionHandlers<ResponseType, ErrorType>
+    ) where ResponseType: Decodable, ErrorType: Error & Decodable {
         self.mappedData(
             url: url,
             mapper: mapper,
             completionHandlerQueue: completionHandlerQueue,
-            completionHandler: completionHandler,
+            completionHandlers: completionHandlers,
             progressObserver: nil
         )
     }
     
-    public func mappedData<ResponseType>(
+    public func mappedData<ResponseType, ErrorType>(
         url: URL,
         mapper: MapperProtocol,
         completionHandlerQueue: DispatchQueue,
-        completionHandler: @escaping MappedNetworkRequestCompletionHandler<ResponseType>,
+        completionHandlers: MappedNetworkRequestCompletionHandlers<ResponseType, ErrorType>,
         progressObserver: NetworkOperationProgressObservationProtocol?
-    ) where ResponseType: Decodable {
+    ) where ResponseType: Decodable, ErrorType: Error & Decodable {
         let urlRequest = URLRequest(url: url)
         self.mappedData(
             urlRequest: urlRequest,
             mapper: mapper,
             completionHandlerQueue: completionHandlerQueue,
-            completionHandler: completionHandler,
+            completionHandlers: completionHandlers,
             progressObserver: progressObserver
         )
     }
     
-    public func mappedData<ResponseType>(
+    public func mappedData<ResponseType, ErrorType>(
         urlRequest: URLRequest,
         mapper: MapperProtocol,
         completionHandlerQueue: DispatchQueue,
-        completionHandler: @escaping MappedNetworkRequestCompletionHandler<ResponseType>
-    ) where ResponseType: Decodable {
+        completionHandlers: MappedNetworkRequestCompletionHandlers<ResponseType, ErrorType>
+    ) where ResponseType: Decodable, ErrorType: Error & Decodable {
         self.mappedData(
             urlRequest: urlRequest,
             mapper: mapper,
             completionHandlerQueue: completionHandlerQueue,
-            completionHandler: completionHandler,
+            completionHandlers: completionHandlers,
             progressObserver: nil
         )
     }
     
-    public func mappedData<ResponseType>(
+    public func mappedData<ResponseType, ErrorType>(
         urlRequest: URLRequest,
         mapper: MapperProtocol,
         completionHandlerQueue: DispatchQueue,
-        completionHandler: @escaping MappedNetworkRequestCompletionHandler<ResponseType>,
+        completionHandlers: MappedNetworkRequestCompletionHandlers<ResponseType, ErrorType>,
         progressObserver: NetworkOperationProgressObservationProtocol?
-    ) where ResponseType: Decodable {
-        if let mappedNetworkOperation = self.operations[urlRequest] as? MappedNetworkOperation<ResponseType> {
-            mappedNetworkOperation.mergeCompletionHandlers(contentsOf: [completionHandlerQueue: [completionHandler]])
+    ) where ResponseType: Decodable, ErrorType: Error & Decodable {
+        if let mappedNetworkOperation = self.operations[urlRequest] as? MappedNetworkOperation<ResponseType, ErrorType> {
+            mappedNetworkOperation.mergeCompletionHandlers(contentsOf: [completionHandlerQueue: [completionHandlers]])
         } else {
             let mappedNetworkOperation = MappedNetworkOperation(
                 urlRequest: urlRequest,
                 urlSession: self.urlSession,
                 progressObserver: progressObserver,
                 mapper: mapper,
-                mappedDataCompletionHandlersHashTable: [completionHandlerQueue: [completionHandler]]
+                mappedDataCompletionHandlersHashTable: [completionHandlerQueue: [completionHandlers]]
             )
             self.startTrackingAndPerform(
                 operation: mappedNetworkOperation,

@@ -8,5 +8,8 @@
 import Foundation
 
 // MARK: Public typealiases
-public typealias MappedNetworkRequestCompletionHandler<ResponseType> = (Result<ResponseType, Error>) -> Void where ResponseType: Decodable
+public typealias MappedNetworkRequestCompletionHandlers<ResponseType, ErrorType> = (
+    success: (Result<ResponseType, ErrorType>) -> Void,
+    failure: ((Result<ResponseType, Error>) -> Void)?
+) where ResponseType: Decodable, ErrorType: Error & Decodable
 public typealias RawNetworkRequestCompletionHandler = (Result<Data, Error>) -> Void
