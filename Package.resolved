@@ -5,8 +5,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Albert-Grislis/Utils",
       "state" : {
-        "branch" : "main",
-        "revision" : "e7441563a68249a970175c40fc9ea80a071e7422"
+        "revision" : "e00688df5f9dfeaaaebb7eebb1d19d8f147f3664",
+        "version" : "1.0.0"
       }
     }
   ],

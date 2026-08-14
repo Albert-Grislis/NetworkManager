@@ -33,22 +33,24 @@ final class MappedNetworkOperation<ResponseType, ErrorType>: RawNetworkOperation
     }
     
     // MARK: Internal methods
-    func mergeCompletionHandlers(
+    @discardableResult func mergeCompletionHandlers(
         contentsOf sequence: [DispatchQueue: [MappedNetworkRequestCompletionHandlers<ResponseType, ErrorType>]]
-    ) {
-        guard !self.isCancelled else { return }
-        sequence.forEach { (queue, completionHandlers) in
-            if var currentCompletionHandlers = self.mappedDataCompletionHandlersHashTable[queue] {
-                currentCompletionHandlers.append(contentsOf: completionHandlers)
-                self.safeMutateMappedDataCompletionHandlersHashTable(
-                    completionHandlers: currentCompletionHandlers,
-                    forKey: queue
-                )
-            } else {
-                self.safeMutateMappedDataCompletionHandlersHashTable(
-                    completionHandlers: completionHandlers,
-                    forKey: queue
-                )
+    ) -> Bool {
+        guard !self.isCancelled else { return false }
+        return self.performIfCompletionIsNotFinalized {
+            sequence.forEach { (queue, completionHandlers) in
+                if var currentCompletionHandlers = self.mappedDataCompletionHandlersHashTable[queue] {
+                    currentCompletionHandlers.append(contentsOf: completionHandlers)
+                    self.safeMutateMappedDataCompletionHandlersHashTable(
+                        completionHandlers: currentCompletionHandlers,
+                        forKey: queue
+                    )
+                } else {
+                    self.safeMutateMappedDataCompletionHandlersHashTable(
+                        completionHandlers: completionHandlers,
+                        forKey: queue
+                    )
+                }
             }
         }
     }
@@ -57,6 +59,10 @@ final class MappedNetworkOperation<ResponseType, ErrorType>: RawNetworkOperation
         guard !self.isCancelled else {
             return
         }
+        guard self.finalizeCompletionIfNeeded() else {
+            return
+        }
+        self.deliverRawCompletionHandlers(result: result)
         switch result {
         case let .success(data):
             do {
@@ -80,6 +86,17 @@ final class MappedNetworkOperation<ResponseType, ErrorType>: RawNetworkOperation
             }
         case let .failure(error):
             self.completeWithAnyError(error)
+        }
+    }
+    
+    override func deliverCancellation() {
+        super.deliverCancellation()
+        self.mappedDataCompletionHandlersHashTable.forEach { (queue, completionHandlers) in
+            queue.async {
+                completionHandlers.forEach { (completionHandler) in
+                    completionHandler.failure?(.failure(URLError(.cancelled)))
+                }
+            }
         }
     }
     

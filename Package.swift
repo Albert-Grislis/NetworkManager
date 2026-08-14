@@ -20,7 +20,7 @@ let package = Package(
     dependencies: [
         .package(
             url: "https://github.com/Albert-Grislis/Utils",
-            branch: "main"
+            from: "1.0.0"
         ),
     ],
     targets: [

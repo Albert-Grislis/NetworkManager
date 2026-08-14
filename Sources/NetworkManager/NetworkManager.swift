@@ -11,9 +11,10 @@ import Utils
 public final class NetworkManager: NSObject {
     
     // MARK: Private properties
-    @UnfairLock private var operations: [URLRequest: RawNetworkOperation]
+    @UnfairLock private var operations: [OperationKey: RawNetworkOperation]
     private let operationQueue: OperationQueue
     private let urlSession: URLSession
+    private let synchronizationQueue = DispatchQueue(label: "com.networkmanager.synchronization")
     
     // MARK: Initializers & Deinitializers
     public init(
@@ -32,18 +33,45 @@ public final class NetworkManager: NSObject {
         operation: RawNetworkOperation,
         forKey urlRequest: URLRequest
     ) {
-        operation.completionBlock = { [weak self] in
-            self?._operations.mutate { (operations) in
-                operations.removeValue(forKey: urlRequest)
+        let operationKey = OperationKey(urlRequest: urlRequest)
+        operation.completionBlock = { [weak self, weak operation] in
+            self?.synchronizationQueue.async {
+                self?._operations.mutate { (operations) in
+                    guard
+                        let operation = operation,
+                        operations[operationKey] === operation
+                    else {
+                        return
+                    }
+                    operations.removeValue(forKey: operationKey)
+                }
             }
         }
         self._operations.mutate { (operations) in
             operations.updateValue(
                 operation,
-                forKey: urlRequest
+                forKey: operationKey
             )
         }
         self.operationQueue.addOperation(operation)
+    }
+}
+
+// MARK: OperationKey
+private extension NetworkManager {
+
+    /// Registry key that keeps requests differing only by body apart, since `URLRequest` equality and hashing ignore `httpBody`.
+    struct OperationKey: Hashable {
+
+        // MARK: Internal properties
+        let urlRequest: URLRequest
+        let httpBody: Data?
+
+        // MARK: Initializers & Deinitializers
+        init(urlRequest: URLRequest) {
+            self.urlRequest = urlRequest
+            self.httpBody = urlRequest.httpBody
+        }
     }
 }
 
@@ -103,9 +131,12 @@ extension NetworkManager: NetworkManagerProtocol {
         completionHandlers: MappedNetworkRequestCompletionHandlers<ResponseType, ErrorType>,
         progressObserver: NetworkOperationProgressObservationProtocol?
     ) where ResponseType: Decodable, ErrorType: Error & Decodable {
-        if let mappedNetworkOperation = self.operations[urlRequest] as? MappedNetworkOperation<ResponseType, ErrorType> {
-            mappedNetworkOperation.mergeCompletionHandlers(contentsOf: [completionHandlerQueue: [completionHandlers]])
-        } else {
+        self.synchronizationQueue.sync {
+            if
+                let mappedNetworkOperation = self.operations[OperationKey(urlRequest: urlRequest)] as? MappedNetworkOperation<ResponseType, ErrorType>,
+                mappedNetworkOperation.mergeCompletionHandlers(contentsOf: [completionHandlerQueue: [completionHandlers]]) {
+                return
+            }
             let mappedNetworkOperation = MappedNetworkOperation(
                 urlRequest: urlRequest,
                 urlSession: self.urlSession,
@@ -167,9 +198,12 @@ extension NetworkManager: NetworkManagerProtocol {
         completionHandler: @escaping RawNetworkRequestCompletionHandler,
         progressObserver: NetworkOperationProgressObservationProtocol?
     ) {
-        if let rawNetworkOperation = self.operations[urlRequest] {
-            rawNetworkOperation.mergeCompletionHandlers(contentsOf: [completionHandlerQueue: [completionHandler]])
-        } else {
+        self.synchronizationQueue.sync {
+            if
+                let rawNetworkOperation = self.operations[OperationKey(urlRequest: urlRequest)],
+                rawNetworkOperation.mergeCompletionHandlers(contentsOf: [completionHandlerQueue: [completionHandler]]) {
+                return
+            }
             let rawNetworkOperation = RawNetworkOperation(
                 urlRequest: urlRequest,
                 urlSession: self.urlSession,
@@ -184,6 +218,10 @@ extension NetworkManager: NetworkManagerProtocol {
     }
     
     public func cancelAnyTasksIfNeeded(at urlRequest: URLRequest) {
-        self.operations.removeValue(forKey: urlRequest)?.cancel()
+        self.synchronizationQueue.sync {
+            self._operations.mutate { (operations) in
+                operations.removeValue(forKey: OperationKey(urlRequest: urlRequest))
+            }?.cancel()
+        }
     }
 }

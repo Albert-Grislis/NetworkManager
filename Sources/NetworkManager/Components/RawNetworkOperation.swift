@@ -15,9 +15,35 @@ class RawNetworkOperation: AsynchronousOperation, @unchecked Sendable {
     
     // MARK: Private properties
     private let urlSession: URLSession
-    private var urlSessionTask: URLSessionTask?
-    private weak var urlSessionTaskProgressObserver: NetworkOperationProgressObservationProtocol?
+    private let taskStateLock = NSLock()
+    private var _urlSessionTask: URLSessionTask?
+    private weak var _urlSessionTaskProgressObserver: NetworkOperationProgressObservationProtocol?
+    private var urlSessionTask: URLSessionTask? {
+        get {
+            defer {
+                self.taskStateLock.unlock()
+            }
+            self.taskStateLock.lock()
+            return self._urlSessionTask
+        }
+        set {
+            defer {
+                self.taskStateLock.unlock()
+            }
+            self.taskStateLock.lock()
+            self._urlSessionTask = newValue
+        }
+    }
+    private var urlSessionTaskProgressObserver: NetworkOperationProgressObservationProtocol? {
+        defer {
+            self.taskStateLock.unlock()
+        }
+        self.taskStateLock.lock()
+        return self._urlSessionTaskProgressObserver
+    }
     @UnfairLock private var completionHandlersHashTable: [DispatchQueue: [RawNetworkRequestCompletionHandler]]
+    private let completionStateLock = NSLock()
+    private var completionIsFinalized = false
     
     // MARK: Initializers & Deinitializers
     init(
@@ -28,7 +54,7 @@ class RawNetworkOperation: AsynchronousOperation, @unchecked Sendable {
     ) {
         self.urlRequest = urlRequest
         self.urlSession = urlSession
-        self.urlSessionTaskProgressObserver = progressObserver
+        self._urlSessionTaskProgressObserver = progressObserver
         self.completionHandlersHashTable = completionHandlersHashTable ?? [:]
         super.init()
     }
@@ -40,9 +66,10 @@ class RawNetworkOperation: AsynchronousOperation, @unchecked Sendable {
     // MARK: Internal methods
     override func main() {
         guard !self.isCancelled else {
+            self.finish()
             return
         }
-        self.urlSessionTask = self.urlSession.dataTask(with: self.urlRequest) { [weak self] (data, _, error) in
+        let urlSessionTask = self.urlSession.dataTask(with: self.urlRequest) { [weak self] (data, _, error) in
             defer {
                 self?.finish()
             }
@@ -50,26 +77,39 @@ class RawNetworkOperation: AsynchronousOperation, @unchecked Sendable {
                 self?.complete(result: .failure(error))
             } else if let data = data {
                 self?.complete(result: .success(data))
+            } else {
+                self?.complete(result: .failure(URLError(.badServerResponse)))
             }
         }
-        if // urlSessionTaskProgressObserver exists
-            let urlSessionTask = self.urlSessionTask,
-            let urlSessionTaskProgressObserver = self.urlSessionTaskProgressObserver {
+        self.urlSessionTask = urlSessionTask
+        guard !self.isCancelled else {
+            urlSessionTask.cancel()
+            self.finish()
+            return
+        }
+        if let urlSessionTaskProgressObserver = self.urlSessionTaskProgressObserver { // urlSessionTaskProgressObserver exists
             urlSessionTaskProgressObserver.observe(progress: urlSessionTask.progress)
         }
-        self.urlSessionTask?.resume()
+        urlSessionTask.resume()
     }
     
     override func cancel() {
+        let shouldDeliverCancellation = self.finalizeCompletionIfNeeded()
         super.cancel()
         self.urlSessionTask?.cancel()
         self.urlSessionTaskProgressObserver?.invalidateNetworkOperationProgressObservation()
+        if shouldDeliverCancellation {
+            self.deliverCancellation()
+        }
     }
     
-    func mergeCompletionHandlers(
+    @discardableResult func mergeCompletionHandlers(
         contentsOf sequence: [DispatchQueue: [RawNetworkRequestCompletionHandler]]
-    ) {
-        if !self.isCancelled {
+    ) -> Bool {
+        guard !self.isCancelled else {
+            return false
+        }
+        return self.performIfCompletionIsNotFinalized {
             sequence.forEach { (queue, completionHandlers) in
                 if var currentCompletionHandlers = self.completionHandlersHashTable[queue] {
                     currentCompletionHandlers.append(contentsOf: completionHandlers)
@@ -89,6 +129,11 @@ class RawNetworkOperation: AsynchronousOperation, @unchecked Sendable {
     
     func complete(result: Result<Data, Error>) {
         guard !self.isCancelled else { return }
+        guard self.finalizeCompletionIfNeeded() else { return }
+        self.deliverRawCompletionHandlers(result: result)
+    }
+    
+    func deliverRawCompletionHandlers(result: Result<Data, Error>) {
         self.completionHandlersHashTable.forEach { (queue, completionHandlers) in
             queue.sync {
                 completionHandlers.forEach { (completionHandler) in
@@ -96,6 +141,40 @@ class RawNetworkOperation: AsynchronousOperation, @unchecked Sendable {
                 }
             }
         }
+    }
+    
+    func deliverCancellation() {
+        self.completionHandlersHashTable.forEach { (queue, completionHandlers) in
+            queue.async {
+                completionHandlers.forEach { (completionHandler) in
+                    completionHandler(.failure(URLError(.cancelled)))
+                }
+            }
+        }
+    }
+    
+    func finalizeCompletionIfNeeded() -> Bool {
+        defer {
+            self.completionStateLock.unlock()
+        }
+        self.completionStateLock.lock()
+        guard !self.completionIsFinalized else {
+            return false
+        }
+        self.completionIsFinalized = true
+        return true
+    }
+    
+    func performIfCompletionIsNotFinalized(_ mutation: () -> Void) -> Bool {
+        defer {
+            self.completionStateLock.unlock()
+        }
+        self.completionStateLock.lock()
+        guard !self.completionIsFinalized else {
+            return false
+        }
+        mutation()
+        return true
     }
     
     // MARK: Private methods
