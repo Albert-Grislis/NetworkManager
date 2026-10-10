@@ -1,6 +1,6 @@
 //
 //  RawNetworkOperation.swift
-//
+//  NetworkManager
 //
 //  Created by Albert Grislis on 13.02.2021.
 //
@@ -17,29 +17,25 @@ class RawNetworkOperation: AsynchronousOperation, @unchecked Sendable {
     private let urlSession: URLSession
     private let taskStateLock = NSLock()
     private var _urlSessionTask: URLSessionTask?
-    private weak var _urlSessionTaskProgressObserver: NetworkOperationProgressObservationProtocol?
+    private let _urlSessionTaskProgressObservers: NSHashTable<AnyObject>
     private var urlSessionTask: URLSessionTask? {
-        get {
-            defer {
-                self.taskStateLock.unlock()
-            }
-            self.taskStateLock.lock()
-            return self._urlSessionTask
-        }
-        set {
-            defer {
-                self.taskStateLock.unlock()
-            }
-            self.taskStateLock.lock()
-            self._urlSessionTask = newValue
-        }
-    }
-    private var urlSessionTaskProgressObserver: NetworkOperationProgressObservationProtocol? {
         defer {
             self.taskStateLock.unlock()
         }
         self.taskStateLock.lock()
-        return self._urlSessionTaskProgressObserver
+        return self._urlSessionTask
+    }
+    private var urlSessionTaskProgressObservers: [NetworkOperationProgressObservationProtocol] {
+        defer {
+            self.taskStateLock.unlock()
+        }
+        self.taskStateLock.lock()
+        return self.unsynchronizedURLSessionTaskProgressObservers
+    }
+    private var unsynchronizedURLSessionTaskProgressObservers: [NetworkOperationProgressObservationProtocol] {
+        return self._urlSessionTaskProgressObservers.allObjects.compactMap { (urlSessionTaskProgressObserver) in
+            urlSessionTaskProgressObserver as? NetworkOperationProgressObservationProtocol
+        }
     }
     @UnfairLock private var completionHandlersHashTable: [DispatchQueue: [RawNetworkRequestCompletionHandler]]
     private let completionStateLock = NSLock()
@@ -54,13 +50,14 @@ class RawNetworkOperation: AsynchronousOperation, @unchecked Sendable {
     ) {
         self.urlRequest = urlRequest
         self.urlSession = urlSession
-        self._urlSessionTaskProgressObserver = progressObserver
         self.completionHandlersHashTable = completionHandlersHashTable ?? [:]
+        self._urlSessionTaskProgressObservers = NSHashTable<AnyObject>(options: [.weakMemory, .objectPointerPersonality])
         super.init()
+        self.addProgressObserver(progressObserver)
     }
     
     deinit {
-        self.urlSessionTaskProgressObserver?.invalidateNetworkOperationProgressObservation()
+        self.invalidateProgressObservers()
     }
     
     // MARK: Internal methods
@@ -81,13 +78,16 @@ class RawNetworkOperation: AsynchronousOperation, @unchecked Sendable {
                 self?.complete(result: .failure(URLError(.badServerResponse)))
             }
         }
-        self.urlSessionTask = urlSessionTask
+        let urlSessionTaskProgressObservers = self.taskStateLock.withLock { () -> [NetworkOperationProgressObservationProtocol] in
+            self._urlSessionTask = urlSessionTask
+            return self.unsynchronizedURLSessionTaskProgressObservers
+        }
         guard !self.isCancelled else {
             urlSessionTask.cancel()
             self.finish()
             return
         }
-        if let urlSessionTaskProgressObserver = self.urlSessionTaskProgressObserver { // urlSessionTaskProgressObserver exists
+        urlSessionTaskProgressObservers.forEach { (urlSessionTaskProgressObserver) in
             urlSessionTaskProgressObserver.observe(progress: urlSessionTask.progress)
         }
         urlSessionTask.resume()
@@ -97,7 +97,7 @@ class RawNetworkOperation: AsynchronousOperation, @unchecked Sendable {
         let shouldDeliverCancellation = self.finalizeCompletionIfNeeded()
         super.cancel()
         self.urlSessionTask?.cancel()
-        self.urlSessionTaskProgressObserver?.invalidateNetworkOperationProgressObservation()
+        self.invalidateProgressObservers()
         if shouldDeliverCancellation {
             self.deliverCancellation()
         }
@@ -127,6 +127,18 @@ class RawNetworkOperation: AsynchronousOperation, @unchecked Sendable {
         }
     }
     
+    func addProgressObserver(_ progressObserver: NetworkOperationProgressObservationProtocol?) {
+        guard let progressObserver else { return }
+        let urlSessionTask = self.taskStateLock.withLock { () -> URLSessionTask? in
+            guard !self._urlSessionTaskProgressObservers.contains(progressObserver) else { return nil }
+            self._urlSessionTaskProgressObservers.add(progressObserver)
+            return self._urlSessionTask
+        }
+        if let urlSessionTask {
+            progressObserver.observe(progress: urlSessionTask.progress)
+        }
+    }
+
     func complete(result: Result<Data, Error>) {
         guard !self.isCancelled else { return }
         guard self.finalizeCompletionIfNeeded() else { return }
@@ -187,6 +199,12 @@ class RawNetworkOperation: AsynchronousOperation, @unchecked Sendable {
                 completionHandlers,
                 forKey: queue
             )
+        }
+    }
+
+    private func invalidateProgressObservers() {
+        self.urlSessionTaskProgressObservers.forEach { (urlSessionTaskProgressObserver) in
+            urlSessionTaskProgressObserver.invalidateNetworkOperationProgressObservation()
         }
     }
 }

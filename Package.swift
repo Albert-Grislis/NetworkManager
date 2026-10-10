@@ -1,4 +1,4 @@
-// swift-tools-version: 5.8.0
+// swift-tools-version: 6.4
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "NetworkManager",
     platforms: [
-        .iOS(.v16),
+        .iOS(.v26),
     ],
     products: [
         .library(
@@ -20,7 +20,7 @@ let package = Package(
     dependencies: [
         .package(
             url: "https://github.com/Albert-Grislis/Utils",
-            from: "1.0.0"
+            from: "1.2.0"
         ),
     ],
     targets: [
@@ -28,6 +28,12 @@ let package = Package(
             name: "NetworkManager",
             dependencies: [
                 "Utils",
+            ]
+        ),
+        .testTarget(
+            name: "NetworkManagerTests",
+            dependencies: [
+                "NetworkManager",
             ]
         ),
     ]

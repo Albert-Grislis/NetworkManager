@@ -1,13 +1,14 @@
 //
 //  NetworkManagerProtocol.swift
-//
+//  NetworkManager
 //
 //  Created by Albert Grislis on 14.04.2021.
 //
 
 import Foundation
 
-public protocol NetworkManagerProtocol {
+@preconcurrency
+public protocol NetworkManagerProtocol: Sendable {
     
     // MARK: Public methods
     func mappedData<ResponseType, ErrorType>(
@@ -15,7 +16,7 @@ public protocol NetworkManagerProtocol {
         mapper: MapperProtocol,
         completionHandlerQueue: DispatchQueue,
         completionHandlers: MappedNetworkRequestCompletionHandlers<ResponseType, ErrorType>
-    ) where ResponseType: Decodable, ErrorType: Error & Decodable
+    ) where ResponseType: Decodable & Sendable, ErrorType: Error & Decodable
     
     func mappedData<ResponseType, ErrorType>(
         url: URL,
@@ -23,14 +24,14 @@ public protocol NetworkManagerProtocol {
         completionHandlerQueue: DispatchQueue,
         completionHandlers: MappedNetworkRequestCompletionHandlers<ResponseType, ErrorType>,
         progressObserver: NetworkOperationProgressObservationProtocol?
-    ) where ResponseType: Decodable, ErrorType: Error & Decodable
+    ) where ResponseType: Decodable & Sendable, ErrorType: Error & Decodable
     
     func mappedData<ResponseType, ErrorType>(
         urlRequest: URLRequest,
         mapper: MapperProtocol,
         completionHandlerQueue: DispatchQueue,
         completionHandlers: MappedNetworkRequestCompletionHandlers<ResponseType, ErrorType>
-    ) where ResponseType: Decodable, ErrorType: Error & Decodable
+    ) where ResponseType: Decodable & Sendable, ErrorType: Error & Decodable
     
     func mappedData<ResponseType, ErrorType>(
         urlRequest: URLRequest,
@@ -38,7 +39,7 @@ public protocol NetworkManagerProtocol {
         completionHandlerQueue: DispatchQueue,
         completionHandlers: MappedNetworkRequestCompletionHandlers<ResponseType, ErrorType>,
         progressObserver: NetworkOperationProgressObservationProtocol?
-    ) where ResponseType: Decodable, ErrorType: Error & Decodable
+    ) where ResponseType: Decodable & Sendable, ErrorType: Error & Decodable
     
     func rawData(
         url: URL,

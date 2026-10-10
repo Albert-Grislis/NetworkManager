@@ -1,6 +1,6 @@
 //
 //  NetworkManager.swift
-//
+//  NetworkManager
 //
 //  Created by Albert Grislis on 13.02.2021.
 //
@@ -12,6 +12,7 @@ public final class NetworkManager: NSObject {
     
     // MARK: Private properties
     @UnfairLock private var operations: [OperationKey: RawNetworkOperation]
+    @UnfairLock private var displacedOperations: [OperationKey: [RawNetworkOperation]]
     private let operationQueue: OperationQueue
     private let urlSession: URLSession
     private let synchronizationQueue = DispatchQueue(label: "com.networkmanager.synchronization")
@@ -22,6 +23,7 @@ public final class NetworkManager: NSObject {
         qualityOfServiceOfOperationQueue: QualityOfService
     ) {
         self.operations = [:]
+        self.displacedOperations = [:]
         self.operationQueue = OperationQueue()
         self.operationQueue.qualityOfService = qualityOfServiceOfOperationQueue
         self.urlSession = urlSession
@@ -35,43 +37,34 @@ public final class NetworkManager: NSObject {
     ) {
         let operationKey = OperationKey(urlRequest: urlRequest)
         operation.completionBlock = { [weak self, weak operation] in
-            self?.synchronizationQueue.async {
-                self?._operations.mutate { (operations) in
-                    guard
-                        let operation = operation,
-                        operations[operationKey] === operation
-                    else {
-                        return
-                    }
+            guard let self, let operation else { return }
+            self.synchronizationQueue.sync {
+                self._operations.mutate { (operations) in
+                    guard operations[operationKey] === operation else { return }
                     operations.removeValue(forKey: operationKey)
+                }
+                self._displacedOperations.mutate { (displacedOperations) in
+                    displacedOperations[operationKey]?.removeAll { (displacedOperation) in
+                        displacedOperation === operation
+                    }
+                    if displacedOperations[operationKey]?.isEmpty == true {
+                        displacedOperations.removeValue(forKey: operationKey)
+                    }
                 }
             }
         }
-        self._operations.mutate { (operations) in
+        let displacedOperation = self._operations.mutate { (operations) in
             operations.updateValue(
                 operation,
                 forKey: operationKey
             )
         }
-        self.operationQueue.addOperation(operation)
-    }
-}
-
-// MARK: OperationKey
-private extension NetworkManager {
-
-    /// Registry key that keeps requests differing only by body apart, since `URLRequest` equality and hashing ignore `httpBody`.
-    struct OperationKey: Hashable {
-
-        // MARK: Internal properties
-        let urlRequest: URLRequest
-        let httpBody: Data?
-
-        // MARK: Initializers & Deinitializers
-        init(urlRequest: URLRequest) {
-            self.urlRequest = urlRequest
-            self.httpBody = urlRequest.httpBody
+        if let displacedOperation {
+            self._displacedOperations.mutate { (displacedOperations) in
+                displacedOperations[operationKey, default: []].append(displacedOperation)
+            }
         }
+        self.operationQueue.addOperation(operation)
     }
 }
 
@@ -82,7 +75,7 @@ extension NetworkManager: NetworkManagerProtocol {
         mapper: MapperProtocol,
         completionHandlerQueue: DispatchQueue,
         completionHandlers: MappedNetworkRequestCompletionHandlers<ResponseType, ErrorType>
-    ) where ResponseType: Decodable, ErrorType: Error & Decodable {
+    ) where ResponseType: Decodable & Sendable, ErrorType: Error & Decodable {
         self.mappedData(
             url: url,
             mapper: mapper,
@@ -98,7 +91,7 @@ extension NetworkManager: NetworkManagerProtocol {
         completionHandlerQueue: DispatchQueue,
         completionHandlers: MappedNetworkRequestCompletionHandlers<ResponseType, ErrorType>,
         progressObserver: NetworkOperationProgressObservationProtocol?
-    ) where ResponseType: Decodable, ErrorType: Error & Decodable {
+    ) where ResponseType: Decodable & Sendable, ErrorType: Error & Decodable {
         let urlRequest = URLRequest(url: url)
         self.mappedData(
             urlRequest: urlRequest,
@@ -114,7 +107,7 @@ extension NetworkManager: NetworkManagerProtocol {
         mapper: MapperProtocol,
         completionHandlerQueue: DispatchQueue,
         completionHandlers: MappedNetworkRequestCompletionHandlers<ResponseType, ErrorType>
-    ) where ResponseType: Decodable, ErrorType: Error & Decodable {
+    ) where ResponseType: Decodable & Sendable, ErrorType: Error & Decodable {
         self.mappedData(
             urlRequest: urlRequest,
             mapper: mapper,
@@ -130,12 +123,16 @@ extension NetworkManager: NetworkManagerProtocol {
         completionHandlerQueue: DispatchQueue,
         completionHandlers: MappedNetworkRequestCompletionHandlers<ResponseType, ErrorType>,
         progressObserver: NetworkOperationProgressObservationProtocol?
-    ) where ResponseType: Decodable, ErrorType: Error & Decodable {
-        self.synchronizationQueue.sync {
+    ) where ResponseType: Decodable & Sendable, ErrorType: Error & Decodable {
+        let joinedNetworkOperation = self.synchronizationQueue.sync { () -> RawNetworkOperation? in
             if
                 let mappedNetworkOperation = self.operations[OperationKey(urlRequest: urlRequest)] as? MappedNetworkOperation<ResponseType, ErrorType>,
-                mappedNetworkOperation.mergeCompletionHandlers(contentsOf: [completionHandlerQueue: [completionHandlers]]) {
-                return
+                mappedNetworkOperation.mergeCompletionHandlers(
+                    contentsOf: [completionHandlerQueue: [completionHandlers]],
+                    mapper: mapper
+                )
+            {
+                return mappedNetworkOperation
             }
             let mappedNetworkOperation = MappedNetworkOperation(
                 urlRequest: urlRequest,
@@ -148,7 +145,9 @@ extension NetworkManager: NetworkManagerProtocol {
                 operation: mappedNetworkOperation,
                 forKey: urlRequest
             )
+            return nil
         }
+        joinedNetworkOperation?.addProgressObserver(progressObserver)
     }
     
     public func rawData(
@@ -198,11 +197,12 @@ extension NetworkManager: NetworkManagerProtocol {
         completionHandler: @escaping RawNetworkRequestCompletionHandler,
         progressObserver: NetworkOperationProgressObservationProtocol?
     ) {
-        self.synchronizationQueue.sync {
+        let joinedNetworkOperation = self.synchronizationQueue.sync { () -> RawNetworkOperation? in
             if
                 let rawNetworkOperation = self.operations[OperationKey(urlRequest: urlRequest)],
-                rawNetworkOperation.mergeCompletionHandlers(contentsOf: [completionHandlerQueue: [completionHandler]]) {
-                return
+                rawNetworkOperation.mergeCompletionHandlers(contentsOf: [completionHandlerQueue: [completionHandler]])
+            {
+                return rawNetworkOperation
             }
             let rawNetworkOperation = RawNetworkOperation(
                 urlRequest: urlRequest,
@@ -214,14 +214,27 @@ extension NetworkManager: NetworkManagerProtocol {
                 operation: rawNetworkOperation,
                 forKey: urlRequest
             )
+            return nil
         }
+        joinedNetworkOperation?.addProgressObserver(progressObserver)
     }
     
     public func cancelAnyTasksIfNeeded(at urlRequest: URLRequest) {
-        self.synchronizationQueue.sync {
-            self._operations.mutate { (operations) in
-                operations.removeValue(forKey: OperationKey(urlRequest: urlRequest))
-            }?.cancel()
+        let cancelledOperations = self.synchronizationQueue.sync { () -> [RawNetworkOperation] in
+            let operationKey = OperationKey(urlRequest: urlRequest)
+            let displacedOperations = self._displacedOperations.mutate { (displacedOperations) in
+                displacedOperations.removeValue(forKey: operationKey)
+            }
+            let operation = self._operations.mutate { (operations) in
+                operations.removeValue(forKey: operationKey)
+            }
+            return (displacedOperations ?? []) + [operation].compactMap { $0 }
+        }
+        cancelledOperations.forEach { (cancelledOperation) in
+            cancelledOperation.cancel()
         }
     }
 }
+
+// MARK: Sendable
+extension NetworkManager: @unchecked Sendable { /* EMPTY */ }

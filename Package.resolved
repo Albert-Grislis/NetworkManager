@@ -1,14 +1,15 @@
 {
+  "originHash" : "6e89ce76727d51504b25134ebc3fbe9f5db4d22a606e52d18fa12a5471672d37",
   "pins" : [
     {
       "identity" : "utils",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Albert-Grislis/Utils",
       "state" : {
-        "revision" : "e00688df5f9dfeaaaebb7eebb1d19d8f147f3664",
-        "version" : "1.0.0"
+        "revision" : "ea0a5a00de152a371df24637e52df645b997b5ac",
+        "version" : "1.2.0"
       }
     }
   ],
-  "version" : 2
+  "version" : 3
 }
