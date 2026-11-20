@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "NetworkManager",
     platforms: [
-        .iOS(.v18),
+        .iOS(.v17),
     ],
     products: [
         .library(
@@ -20,7 +20,7 @@ let package = Package(
     dependencies: [
         .package(
             url: "https://github.com/Albert-Grislis/Utils",
-            from: "1.2.0"
+            from: "1.2.2"
         ),
     ],
     targets: [
